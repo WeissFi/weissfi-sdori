@@ -4,8 +4,6 @@ module sdori::sdori;
 
 // === Imports ===
 use sui::coin_registry;
-use sui::url;
-use std::ascii::string;
 use sui::balance::{Self, Balance, Supply};
 use sui::coin::{Self, Coin};
 use sui::clock::Clock;
@@ -164,7 +162,7 @@ public fun withdraw(
         dori_amount: dori_to_return,
         exchange_rate,
     });
-    
+
     dori
     //transfer::public_transfer(dori, ctx.sender());
 }
