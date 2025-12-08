@@ -96,11 +96,11 @@ fun init(witness: SDORI, ctx: &mut TxContext) {
 
 // === Public Entry Functions ===
 /// Deposit DORI and receive sDORI at current exchange rate
-public entry fun deposit(
+public fun deposit(
     vault: &mut SavingsVault,
     dori: Coin<DORI>,
     ctx: &mut TxContext
-) {
+): Coin<SDORI> {
     assert!(vault.version == VERSION, EWrongPackageVersion);
 
     let dori_amount = dori.value();
@@ -126,15 +126,16 @@ public entry fun deposit(
         exchange_rate: get_exchange_rate(vault),
     });
 
-    transfer::public_transfer(sdori, ctx.sender());
+    sdori
+    //transfer::public_transfer(sdori, ctx.sender());
 }
 
 /// Burn sDORI and receive DORI at current exchange rate (with accrued yield)
-public entry fun withdraw(
+public fun withdraw(
     vault: &mut SavingsVault,
     sdori: Coin<SDORI>,
     ctx: &mut TxContext
-) {
+): Coin<DORI> {
     assert!(vault.version == VERSION, EWrongPackageVersion);
 
     let sdori_amount = coin::value(&sdori);
@@ -163,8 +164,9 @@ public entry fun withdraw(
         dori_amount: dori_to_return,
         exchange_rate,
     });
-
-    transfer::public_transfer(dori, ctx.sender());
+    
+    dori
+    //transfer::public_transfer(dori, ctx.sender());
 }
 
 
