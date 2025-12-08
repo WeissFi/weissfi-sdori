@@ -92,7 +92,7 @@ fun init(witness: SDORI, ctx: &mut TxContext) {
 }
 
 
-// === Public Entry Functions ===
+// === Public Functions ===
 /// Deposit DORI and receive sDORI at current exchange rate
 public fun deposit(
     vault: &mut SavingsVault,

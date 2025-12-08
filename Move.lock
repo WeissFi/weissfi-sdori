@@ -82,3 +82,8 @@ dependencies = [
   { id = "weisToken", name = "weisToken" },
   { id = "weissFarming", name = "weissFarming" },
 ]
+
+[move.toolchain-version]
+compiler-version = "1.61.2"
+edition = "2024.beta"
+flavor = "sui"
