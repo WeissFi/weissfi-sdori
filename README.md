@@ -245,17 +245,13 @@ A: The protocol deposits yield DORI into the vault, which increases the exchange
 **Q: Is there a deposit or withdrawal fee?**
 A: No fees are charged by the vault contract. Only standard Sui network gas fees apply.
 
-## License
-
-[Add your license here]
-
 ## Contact & Support
 
-[Add contact information here]
+contact@weiss.finance
 
 ## Audit Status
 
-⚠️ **This contract has not been audited.** Use at your own risk. A professional security audit is strongly recommended before production use.
+⚠️ **This contract has not been audited.** Use at your own risk. 
 
 ---
 
