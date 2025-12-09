@@ -4,10 +4,22 @@ A yield-bearing savings vault for DORI tokens on the Sui blockchain. Users depos
 
 ## Overview
 
-The sDORI vault implements a rebasing token mechanism where:
+The sDORI vault implements a **wrapper token mechanism** (similar to wstETH or cTokens) where:
 - Users deposit DORI tokens and receive sDORI (savings DORI)
+- **Your sDORI balance stays constant**, but the exchange rate increases as yield accrues
 - Protocol yield is distributed to the vault, increasing the DORI/sDORI exchange rate
 - Users can withdraw their sDORI at any time to receive their principal + accrued yield
+
+**Important**: This is NOT a rebasing token. Your sDORI balance doesn't change - instead, each sDORI becomes worth more DORI over time.
+
+### Rebasing vs Non-Rebasing (Wrapper) Tokens
+
+| Feature | Rebasing Token (e.g., stETH) | Wrapper Token (sDORI) |
+|---------|------------------------------|------------------------|
+| **Balance Change** | ✅ Your balance increases automatically | ❌ Your balance stays the same |
+| **Price Change** | ❌ Price stays at 1:1 | ✅ Exchange rate increases |
+| **Example** | 100 tokens → 110 tokens (same value each) | 100 tokens → 100 tokens (each worth 1.1x more) |
+| **DeFi Integration** | ⚠️ Complex (balance changes) | ✅ Easier (standard token) |
 
 ## Key Features
 
