@@ -277,3 +277,610 @@ entry fun migrate(_admin: &mut AdminCap, g: &mut SavingsVault) {
     assert!(g.version < VERSION, ENotUpgrade);
     g.version = VERSION;
 }
+
+
+
+// === Test Functions ===
+// #[test_only]
+// use std::debug;
+#[test_only]
+use sui::test_scenario::{Self, Scenario};
+#[test_only]
+use sui::clock;
+// #[test_only]
+// use weissfi::vault_registry::{VaultRegistry, create_vault_registry};
+
+#[test_only]
+const ADMIN :address = @0xCAFE;
+#[test_only]
+const BOB :address = @0xC;
+
+#[test_only]
+fun init_state(scenario: &mut Scenario){
+   
+	let (builder, treasury_cap) = coin_registry::new_currency_with_otw(
+			SDORI{},
+			9,
+			b"sDORI".to_string(),
+			b"Savings DORI".to_string(),
+			b"Yield-bearing DORI from Weiss.Finance protocol. Stake DORI to earn protocol yield.".to_string(),
+			b"https://purple-efficient-armadillo-520.mypinata.cloud/ipfs/bafkreickahkpchfakjsaq4rdnugq25lrcbdgfz6nawswlr3mlmhdwlyiju".to_string(),
+			scenario.ctx(),
+	);
+    let metadata_cap = builder.finalize(scenario.ctx());
+    transfer::public_freeze_object(metadata_cap);
+
+    // Create savings vault
+    let vault = SavingsVault {
+        id: object::new(scenario.ctx()),
+        version: VERSION,
+        dori_balance: balance::zero<DORI>(),
+        sdori_supply: coin::treasury_into_supply(treasury_cap),
+        total_yield_distributed: 0,
+        last_distribution_timestamp: 0,
+    };
+    transfer::share_object(vault);
+
+}
+#[test_only]
+fun deposit_helper(scenario: &mut Scenario, user: address, amount: u64){
+    scenario.next_tx(user);
+    {
+        let mut saving_vault = scenario.take_shared<SavingsVault>();
+        let dori= coin::mint_for_testing<DORI>(amount, scenario.ctx());
+        let sdori = deposit(&mut saving_vault, dori, scenario.ctx());
+        transfer::public_transfer(sdori, user);
+        transfer::share_object(saving_vault);
+    }
+     
+}
+#[test_only]
+fun distribute_yield_helper(scenario: &mut Scenario, clock: &Clock, amount: u64){
+    scenario.next_tx(ADMIN);
+    {
+        let mut saving_vault = scenario.take_shared<SavingsVault>();
+        let dori= coin::mint_for_testing<DORI>(amount, scenario.ctx());
+        distribute_yield(&mut saving_vault, dori, clock);
+        transfer::share_object(saving_vault);
+    };
+}
+// Test success deposit in saving vault
+#[test]
+fun test_deposit(){
+    let mut scenario = test_scenario::begin(ADMIN);
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    scenario.next_tx(BOB);
+    {
+        let mut saving_vault = scenario.take_shared<SavingsVault>();
+        let dori= coin::mint_for_testing<DORI>(100, scenario.ctx());
+        let sdori = deposit(&mut saving_vault, dori, scenario.ctx());
+        
+        assert!(sdori.value() == 100);
+        assert!(saving_vault.dori_balance.value() == 100);
+        assert!(saving_vault.sdori_supply.value() == 100);
+        assert!(saving_vault.total_yield_distributed == 0);
+        assert!(saving_vault.last_distribution_timestamp == 0);
+        
+        transfer::public_transfer(sdori, BOB);
+        transfer::share_object(saving_vault);
+    };
+
+    
+    scenario.end();
+}
+// Test success withdraw in saving vault
+#[test]
+fun test_withdraw(){
+    let mut scenario = test_scenario::begin(ADMIN);
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+    // Bob deposit 
+    {
+        deposit_helper(&mut scenario, BOB, 100);
+    };
+    // Bob withdraw 
+    scenario.next_tx(BOB);
+    {
+        let mut saving_vault = scenario.take_shared<SavingsVault>();
+        let sdori = scenario.take_from_sender<Coin<SDORI>>();
+        let dori = withdraw(&mut saving_vault, sdori, scenario.ctx());
+        assert!(dori.value() == 100);
+        assert!(saving_vault.sdori_supply.value() == 0);
+        assert!(saving_vault.dori_balance.value() == 0);
+        assert!(saving_vault.total_yield_distributed == 0);
+        assert!(saving_vault.last_distribution_timestamp == 0);
+
+        transfer::public_transfer(dori, BOB);
+        transfer::share_object(saving_vault);
+    };    
+
+    scenario.end();
+}
+
+// Test yield deposit in saving vault
+#[test]
+fun test_yield_scenario(){
+    let mut scenario = test_scenario::begin(ADMIN);
+    let mut clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // ADMIN distribute yield
+    clock.increment_for_testing(5000);
+    scenario.next_tx(ADMIN);
+    {
+        let mut saving_vault = scenario.take_shared<SavingsVault>();
+        let dori= coin::mint_for_testing<DORI>(1000, scenario.ctx());
+        distribute_yield(&mut saving_vault, dori, &clock);
+
+        assert!(saving_vault.sdori_supply.value() == 0);
+        assert!(saving_vault.dori_balance.value() == 1000);
+        assert!(saving_vault.total_yield_distributed == 1000);
+        assert!(saving_vault.last_distribution_timestamp == 5000);
+
+        transfer::share_object(saving_vault);
+    };
+
+    clock.destroy_for_testing();
+    scenario.end();
+}
+
+// Test multiple users sharing yield proportionally
+#[test]
+fun test_multiple_users_proportional_yield(){
+    let mut scenario = test_scenario::begin(ADMIN);
+    let clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // BOB deposits 100 DORI
+    deposit_helper(&mut scenario, BOB, 100);
+
+    // ALICE deposits 200 DORI
+    deposit_helper(&mut scenario, @0xAA, 200);
+
+    // Total in vault: 300 DORI, 300 sDORI (ratio 1:1)
+
+    // ADMIN distributes 30 DORI yield (10% yield)
+    distribute_yield_helper(&mut scenario, &clock, 30);
+
+    // Now: 330 DORI, 300 sDORI (ratio 1.1:1)
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        let rate = get_exchange_rate(&vault);
+        assert!(rate == 1_100_000_000); // 1.1 * 1e9
+        assert!(vault.total_yield_distributed == 30);
+        transfer::share_object(vault);
+    };
+
+    // BOB withdraws his 100 sDORI
+    scenario.next_tx(BOB);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let sdori = scenario.take_from_sender<Coin<SDORI>>();
+        let dori = withdraw(&mut vault, sdori, scenario.ctx());
+
+        // BOB should get 110 DORI (100 sDORI * 1.1 rate)
+        assert!(dori.value() == 110);
+
+        transfer::public_transfer(dori, BOB);
+        transfer::share_object(vault);
+    };
+
+    // ALICE withdraws her 200 sDORI
+    scenario.next_tx(@0xAA);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let sdori = scenario.take_from_sender<Coin<SDORI>>();
+        let dori = withdraw(&mut vault, sdori, scenario.ctx());
+
+        // ALICE should get 220 DORI (200 sDORI * 1.1 rate)
+        assert!(dori.value() == 220);
+
+        transfer::public_transfer(dori, @0xAA);
+        transfer::share_object(vault);
+    };
+
+    // Vault should be empty now
+    scenario.next_tx(ADMIN);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(vault.dori_balance.value() == 0);
+        assert!(vault.sdori_supply.value() == 0);
+        transfer::share_object(vault);
+    };
+
+    clock.destroy_for_testing();
+    scenario.end();
+}
+
+// Test new user joining after yield distribution (non-1:1 exchange rate)
+#[test]
+fun test_new_user_joins_after_yield(){
+    let mut scenario = test_scenario::begin(ADMIN);
+    let clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // BOB deposits 100 DORI at 1:1 rate
+    deposit_helper(&mut scenario, BOB, 100);
+
+    // ADMIN distributes 10 DORI yield (10% yield)
+    distribute_yield_helper(&mut scenario, &clock, 10);
+
+    // Now exchange rate is 1.1:1 (110 DORI / 100 sDORI)
+    scenario.next_tx(ADMIN);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(get_exchange_rate(&vault) == 1_100_000_000);
+        transfer::share_object(vault);
+    };
+
+    // ALICE deposits 110 DORI at the new rate
+    scenario.next_tx(@0xAA);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let dori = coin::mint_for_testing<DORI>(110, scenario.ctx());
+        let sdori = deposit(&mut vault, dori, scenario.ctx());
+
+        // ALICE should receive 100 sDORI (110 DORI / 1.1 rate)
+        // Calculation: sdori = dori_amount * total_sdori / total_dori
+        //            = 110 * 100 / 110 = 100
+        assert!(sdori.value() == 100);
+
+        transfer::public_transfer(sdori, @0xAA);
+        transfer::share_object(vault);
+    };
+
+    // Now vault has: 220 DORI, 200 sDORI (still 1.1:1)
+    scenario.next_tx(ADMIN);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(vault.dori_balance.value() == 220);
+        assert!(vault.sdori_supply.value() == 200);
+        assert!(get_exchange_rate(&vault) == 1_100_000_000);
+        transfer::share_object(vault);
+    };
+
+    // BOB withdraws his 100 sDORI
+    scenario.next_tx(BOB);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let sdori = scenario.take_from_sender<Coin<SDORI>>();
+        let dori = withdraw(&mut vault, sdori, scenario.ctx());
+
+        // BOB gets 110 DORI (100 sDORI * 1.1 rate) = his 100 + 10 yield
+        assert!(dori.value() == 110);
+
+        transfer::public_transfer(dori, BOB);
+        transfer::share_object(vault);
+    };
+
+    // ALICE withdraws her 100 sDORI
+    scenario.next_tx(@0xAA);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let sdori = scenario.take_from_sender<Coin<SDORI>>();
+        let dori = withdraw(&mut vault, sdori, scenario.ctx());
+
+        // ALICE gets 110 DORI (100 sDORI * 1.1 rate) = exactly what she deposited
+        assert!(dori.value() == 110);
+
+        transfer::public_transfer(dori, @0xAA);
+        transfer::share_object(vault);
+    };
+
+    // Vault should be empty
+    scenario.next_tx(ADMIN);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(vault.dori_balance.value() == 0);
+        assert!(vault.sdori_supply.value() == 0);
+        transfer::share_object(vault);
+    };
+
+    clock.destroy_for_testing();
+    scenario.end();
+}
+
+// === Error Test Cases ===
+
+// Test deposit with zero amount fails
+#[test]
+#[expected_failure(abort_code = EZeroAmount)]
+fun test_deposit_zero_fails(){
+    let mut scenario = test_scenario::begin(ADMIN);
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    scenario.next_tx(BOB);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let dori = coin::mint_for_testing<DORI>(0, scenario.ctx());
+        let sdori = deposit(&mut vault, dori, scenario.ctx());
+
+        transfer::public_transfer(sdori, BOB);
+        transfer::share_object(vault);
+    };
+
+    scenario.end();
+}
+
+// Test withdraw with zero amount fails
+#[test]
+#[expected_failure(abort_code = EZeroAmount)]
+fun test_withdraw_zero_fails(){
+    let mut scenario = test_scenario::begin(ADMIN);
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    scenario.next_tx(BOB);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let sdori = coin::mint_for_testing<SDORI>(0, scenario.ctx());
+        let dori = withdraw(&mut vault, sdori, scenario.ctx());
+
+        transfer::public_transfer(dori, BOB);
+        transfer::share_object(vault);
+    };
+
+    scenario.end();
+}
+
+// Test withdraw exceeding vault balance fails
+#[test]
+#[expected_failure(abort_code = EInsufficientBalance)]
+fun test_withdraw_insufficient_balance(){
+    let mut scenario = test_scenario::begin(ADMIN);
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // BOB deposits 100 DORI
+    deposit_helper(&mut scenario, BOB, 100);
+
+    // ALICE tries to withdraw with fake sDORI (more than vault has)
+    scenario.next_tx(@0xAA);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        // Create fake sDORI that would require more DORI than in vault
+        let fake_sdori = coin::mint_for_testing<SDORI>(1000, scenario.ctx());
+        let dori = withdraw(&mut vault, fake_sdori, scenario.ctx());
+
+        transfer::public_transfer(dori, @0xAA);
+        transfer::share_object(vault);
+    };
+
+    scenario.end();
+}
+
+// Test distribute zero yield fails
+#[test]
+#[expected_failure(abort_code = EZeroAmount)]
+fun test_distribute_zero_yield_fails(){
+    let mut scenario = test_scenario::begin(ADMIN);
+    let clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    scenario.next_tx(ADMIN);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let zero_yield = coin::mint_for_testing<DORI>(0, scenario.ctx());
+        distribute_yield(&mut vault, zero_yield, &clock);
+
+        transfer::share_object(vault);
+    };
+
+    clock.destroy_for_testing();
+    scenario.end();
+}
+
+// === Edge Cases Tests ===
+
+// Test partial withdraw (user withdraws only part of their sDORI)
+#[test]
+fun test_partial_withdraw(){
+    let mut scenario = test_scenario::begin(ADMIN);
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // BOB deposits 100 DORI
+    deposit_helper(&mut scenario, BOB, 100);
+
+    // BOB withdraws only 30 sDORI (keeping 70 sDORI)
+    scenario.next_tx(BOB);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let mut sdori = scenario.take_from_sender<Coin<SDORI>>();
+
+        // Split to withdraw only 30
+        let sdori_to_withdraw = coin::split(&mut sdori, 30, scenario.ctx());
+        let dori = withdraw(&mut vault, sdori_to_withdraw, scenario.ctx());
+
+        // Should get 30 DORI back
+        assert!(dori.value() == 30);
+        // Vault should have 70 DORI remaining
+        assert!(vault.dori_balance.value() == 70);
+        assert!(vault.sdori_supply.value() == 70);
+
+        transfer::public_transfer(dori, BOB);
+        transfer::public_transfer(sdori, BOB); // Return remaining 70 sDORI
+        transfer::share_object(vault);
+    };
+
+    // BOB withdraws remaining 70 sDORI
+    scenario.next_tx(BOB);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let sdori = scenario.take_from_sender<Coin<SDORI>>();
+        let dori = withdraw(&mut vault, sdori, scenario.ctx());
+
+        assert!(dori.value() == 70);
+        assert!(vault.dori_balance.value() == 0);
+        assert!(vault.sdori_supply.value() == 0);
+
+        transfer::public_transfer(dori, BOB);
+        transfer::share_object(vault);
+    };
+
+    scenario.end();
+}
+
+// Test multiple yield distributions (compound yield)
+#[test]
+fun test_multiple_yield_distributions(){
+    let mut scenario = test_scenario::begin(ADMIN);
+    let mut clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // BOB deposits 1000 DORI
+    deposit_helper(&mut scenario, BOB, 1000);
+
+    // First yield: 100 DORI (10% yield)
+    clock.increment_for_testing(1000);
+    distribute_yield_helper(&mut scenario, &clock, 100);
+
+    // Check rate: (1100/1000) * 1e9 = 1.1e9
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(get_exchange_rate(&vault) == 1_100_000_000);
+        assert!(vault.total_yield_distributed == 100);
+        transfer::share_object(vault);
+    };
+
+    // Second yield: 110 DORI (10% on new total of 1100)
+    clock.increment_for_testing(1000);
+    distribute_yield_helper(&mut scenario, &clock, 110);
+
+    // Check rate: (1210/1000) * 1e9 = 1.21e9
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(get_exchange_rate(&vault) == 1_210_000_000);
+        assert!(vault.total_yield_distributed == 210);
+        assert!(vault.last_distribution_timestamp == 2000);
+        transfer::share_object(vault);
+    };
+
+    // Third yield: 121 DORI (10% on new total of 1210)
+    clock.increment_for_testing(1000);
+    distribute_yield_helper(&mut scenario, &clock, 121);
+
+    // Check rate: (1331/1000) * 1e9 = 1.331e9
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(get_exchange_rate(&vault) == 1_331_000_000);
+        assert!(vault.total_yield_distributed == 331);
+        transfer::share_object(vault);
+    };
+
+    // BOB withdraws all 1000 sDORI
+    scenario.next_tx(BOB);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let sdori = scenario.take_from_sender<Coin<SDORI>>();
+        let dori = withdraw(&mut vault, sdori, scenario.ctx());
+
+        // BOB gets 1331 DORI (1000 principal + 331 compound yield)
+        assert!(dori.value() == 1331);
+
+        transfer::public_transfer(dori, BOB);
+        transfer::share_object(vault);
+    };
+
+    clock.destroy_for_testing();
+    scenario.end();
+}
+
+// Test rounding with small amounts
+#[test]
+fun test_rounding_small_amounts(){
+    let mut scenario = test_scenario::begin(ADMIN);
+    let clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // BOB deposits 3 DORI (very small amount)
+    deposit_helper(&mut scenario, BOB, 3);
+
+    // Distribute 1 DORI yield
+    distribute_yield_helper(&mut scenario, &clock, 1);
+
+    // Rate should be (4/3) * 1e9 = 1.333...e9
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        let rate = get_exchange_rate(&vault);
+        // Allow for rounding: should be around 1.333e9
+        assert!(rate >= 1_333_000_000 && rate <= 1_334_000_000);
+        transfer::share_object(vault);
+    };
+
+    // ALICE deposits 4 DORI at new rate
+    scenario.next_tx(@0xAA);
+    {
+        let mut vault = scenario.take_shared<SavingsVault>();
+        let dori = coin::mint_for_testing<DORI>(4, scenario.ctx());
+        let sdori = deposit(&mut vault, dori, scenario.ctx());
+
+        // ALICE should get 3 sDORI (4 * 3 / 4 = 3)
+        assert!(sdori.value() == 3);
+
+        transfer::public_transfer(sdori, @0xAA);
+        transfer::share_object(vault);
+    };
+
+    // Total should be 8 DORI, 6 sDORI
+    scenario.next_tx(ADMIN);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        assert!(vault.dori_balance.value() == 8);
+        assert!(vault.sdori_supply.value() == 6);
+        transfer::share_object(vault);
+    };
+
+    clock.destroy_for_testing();
+    scenario.end();
+}
