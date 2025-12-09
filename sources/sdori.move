@@ -68,7 +68,7 @@ fun init(witness: SDORI, ctx: &mut TxContext) {
 			b"sDORI".to_string(),
 			b"Savings DORI".to_string(),
 			b"Yield-bearing DORI from Weiss.Finance protocol. Stake DORI to earn protocol yield.".to_string(),
-			b"https://purple-efficient-armadillo-520.mypinata.cloud/ipfs/bafkreickahkpchfakjsaq4rdnugq25lrcbdgfz6nawswlr3mlmhdwlyiju".to_string(),
+			b"https://weissfi.s3.eu-west-3.amazonaws.com/sdori.svg".to_string(),
 			ctx,
 	);
     let metadata_cap = builder.finalize(ctx);
@@ -878,6 +878,82 @@ fun test_rounding_small_amounts(){
         let vault = scenario.take_shared<SavingsVault>();
         assert!(vault.dori_balance.value() == 8);
         assert!(vault.sdori_supply.value() == 6);
+        transfer::share_object(vault);
+    };
+
+    clock.destroy_for_testing();
+    scenario.end();
+}
+
+// Test estimated APY calculation
+#[test]
+fun test_estimated_apy(){
+    let mut scenario = test_scenario::begin(ADMIN);
+    let mut clock = clock::create_for_testing(scenario.ctx());
+
+    scenario.next_tx(ADMIN);
+    {
+        init_state(&mut scenario);
+    };
+
+    // BOB deposits 1000 DORI
+    deposit_helper(&mut scenario, BOB, 1000);
+
+    // Distribute 100 DORI yield (10% yield)
+    distribute_yield_helper(&mut scenario, &clock, 100);
+
+    // Advance clock by 1 day AFTER distribution
+    let one_day_ms = 86_400_000; // 1 day in ms
+    clock.increment_for_testing(one_day_ms);
+
+    // Check APY after 1 day with 10% yield
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        let one_week_ms = 604_800_000; // 7 days lookback
+        let apy = get_estimated_apy(&vault, &clock, one_week_ms);
+
+        // APY calculation: 10% yield in 1 day
+        // Annualized: roughly 10% * 365 ≈ 3650% APY ≈ 365000 basis points
+        // Should return a high non-zero value
+        assert!(apy > 0, 0);
+        assert!(apy > 100000, 1); // Should be > 1000% APY (100000 bps)
+
+        transfer::share_object(vault);
+    };
+
+    // Test: APY returns 0 if lookback period exceeded
+    let two_weeks_ms = 1_209_600_000; // 2 weeks
+    clock.increment_for_testing(two_weeks_ms);
+
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        let short_lookback = 1000; // 1 second
+        let apy = get_estimated_apy(&vault, &clock, short_lookback);
+
+        // Should return 0 because last distribution was > 1 second ago
+        assert!(apy == 0);
+
+        transfer::share_object(vault);
+    };
+
+    // Test: APY with recent distribution (within lookback)
+    distribute_yield_helper(&mut scenario, &clock, 121); // More yield
+
+    // Advance clock by 1 hour after distribution
+    let one_hour_ms = 3_600_000;
+    clock.increment_for_testing(one_hour_ms);
+
+    scenario.next_tx(BOB);
+    {
+        let vault = scenario.take_shared<SavingsVault>();
+        let one_week_ms = 604_800_000; // 7 days lookback
+        let apy = get_estimated_apy(&vault, &clock, one_week_ms);
+
+        // Should have non-zero APY since distribution was within lookback
+        assert!(apy > 0);
+
         transfer::share_object(vault);
     };
 
