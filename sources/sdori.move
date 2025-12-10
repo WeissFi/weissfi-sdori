@@ -67,7 +67,7 @@ fun init(witness: SDORI, ctx: &mut TxContext) {
 			9,
 			b"sDORI".to_string(),
 			b"Savings DORI".to_string(),
-			b"Yield-bearing DORI from Weiss.Finance protocol. Stake DORI to earn protocol yield.".to_string(),
+			b"Yield-bearing DORI. Deposit to earn protocol yield from Weiss.Finance.".to_string(),
 			b"https://weissfi.s3.eu-west-3.amazonaws.com/sdori.svg".to_string(),
 			ctx,
 	);

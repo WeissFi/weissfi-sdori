@@ -19,8 +19,8 @@ weissfi = { local = "../weissfi" }
 # Override = { local = "../conflicting/version", override = true }
 
 [addresses]
-sdori = "0x0"
-weissfi = "0x41c90993ac9972e30e5284f513212cb2186eaa8bde8dfc487e7381bba33b6f97"
+sdori = "0x28d211a39e06485bbb9df3a01127c405649049cc746454278e64056c042d88b2"
+weissfi = "0xc436a8ccc36e649e0fd8c7cec88ca89747b69ba5bdefb15be2f93ae1ae632800"
 
 # Named addresses will be accessible in Move as `@name`. They're also exported:
 # for example, `std = "0x1"` is exported by the Standard Library.
