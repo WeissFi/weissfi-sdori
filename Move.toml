@@ -5,7 +5,7 @@ edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
 [dependencies]
-weissfi = { local = "../weissfi" }
+#weissfi = { local = "../weissfi" }
 
 # For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
 # Revision can be a branch, a tag, and a commit hash.
@@ -19,8 +19,8 @@ weissfi = { local = "../weissfi" }
 # Override = { local = "../conflicting/version", override = true }
 
 [addresses]
-sdori = "0x28d211a39e06485bbb9df3a01127c405649049cc746454278e64056c042d88b2"
-weissfi = "0xc436a8ccc36e649e0fd8c7cec88ca89747b69ba5bdefb15be2f93ae1ae632800"
+sdori = "0x1e881f5933f56d4db5ae61b35c87eb24d08ac370000c55a1124f836ab52ef058"
+#weissfi = "0xc436a8ccc36e649e0fd8c7cec88ca89747b69ba5bdefb15be2f93ae1ae632800"
 
 # Named addresses will be accessible in Move as `@name`. They're also exported:
 # for example, `std = "0x1"` is exported by the Standard Library.

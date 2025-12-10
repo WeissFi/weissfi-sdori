@@ -2,11 +2,10 @@
 
 [move]
 version = 3
-manifest_digest = "A86C315032DA7694A57269A8E078AE7B2D112705BA546D8B4A26E8541DE594AB"
-deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
+manifest_digest = "FB67800C9515141D8F78E19AEF5F5EB217FBF9AD3D9781E31D802859305CBE15"
+deps_digest = "F8BBB0CCB2491CA29A3DF03D6F92277A4F3574266507ACD77214D37ECA3F3082"
 dependencies = [
   { id = "Sui", name = "Sui" },
-  { id = "weissfi", name = "weissfi" },
 ]
 
 [[move.package]]
@@ -14,73 +13,11 @@ id = "MoveStdlib"
 source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/testnet", subdir = "crates/sui-framework/packages/move-stdlib" }
 
 [[move.package]]
-id = "Pyth"
-source = { git = "https://github.com/solendprotocol/pyth-crosschain.git", rev = "98e218c64bb75cf1350eb7b021e1ffcc3aedfd62", subdir = "target_chains/sui/contracts" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-  { id = "Wormhole", name = "Wormhole" },
-]
-
-[[move.package]]
 id = "Sui"
 source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/testnet", subdir = "crates/sui-framework/packages/sui-framework" }
 
 dependencies = [
   { id = "MoveStdlib", name = "MoveStdlib" },
-]
-
-[[move.package]]
-id = "Switchboard"
-source = { git = "https://github.com/0xantman/switchboard.git", rev = "main", subdir = "on_demand/" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "Wormhole"
-source = { git = "https://github.com/solendprotocol/wormhole.git", rev = "e1698d3c72b15cdddd7da98ad43e151f83b72a0a", subdir = "sui/wormhole" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "flowx"
-source = { git = "https://github.com/WeissFi/weiss-farming.git", rev = "main", subdir = "deps/flowx_stub/flowx" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "weisToken"
-source = { git = "https://github.com/WeissFi/weiss-token.git", rev = "main", subdir = "" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[[move.package]]
-id = "weissFarming"
-source = { git = "https://github.com/WeissFi/weiss-farming.git", rev = "main", subdir = "" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-  { id = "flowx", name = "flowx" },
-]
-
-[[move.package]]
-id = "weissfi"
-source = { local = "../weissfi" }
-
-dependencies = [
-  { id = "Pyth", name = "Pyth" },
-  { id = "Sui", name = "Sui" },
-  { id = "Switchboard", name = "Switchboard" },
-  { id = "weisToken", name = "weisToken" },
-  { id = "weissFarming", name = "weissFarming" },
 ]
 
 [move.toolchain-version]
@@ -92,6 +29,6 @@ flavor = "sui"
 
 [env.mainnet]
 chain-id = "35834a8a"
-original-published-id = "0x28d211a39e06485bbb9df3a01127c405649049cc746454278e64056c042d88b2"
-latest-published-id = "0x28d211a39e06485bbb9df3a01127c405649049cc746454278e64056c042d88b2"
+original-published-id = "0x1e881f5933f56d4db5ae61b35c87eb24d08ac370000c55a1124f836ab52ef058"
+latest-published-id = "0x1e881f5933f56d4db5ae61b35c87eb24d08ac370000c55a1124f836ab52ef058"
 published-version = "1"
