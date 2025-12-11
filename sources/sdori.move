@@ -293,7 +293,7 @@ fun init(witness: SDORI, ctx: &mut TxContext) {
 // const BOB :address = @0xC;
 
 // #[test_only]
-// fun init_state(scenario: &mut Scenario){
+// public fun init_state(scenario: &mut Scenario): TreasuryCap<SDORI>{
    
 // 	let (builder, treasury_cap) = coin_registry::new_currency_with_otw(
 // 			SDORI{},
@@ -306,17 +306,18 @@ fun init(witness: SDORI, ctx: &mut TxContext) {
 // 	);
 //     let metadata_cap = builder.finalize(scenario.ctx());
 //     transfer::public_freeze_object(metadata_cap);
+//     treasury_cap
 
-//     // Create savings vault
-//     let vault = SavingsVault {
-//         id: object::new(scenario.ctx()),
-//         version: VERSION,
-//         dori_balance: balance::zero<DORI>(),
-//         sdori_supply: coin::treasury_into_supply(treasury_cap),
-//         total_yield_distributed: 0,
-//         last_distribution_timestamp: 0,
-//     };
-//     transfer::share_object(vault);
+//     // // Create savings vault
+//     // let vault = SavingsVault {
+//     //     id: object::new(scenario.ctx()),
+//     //     version: VERSION,
+//     //     dori_balance: balance::zero<DORI>(),
+//     //     sdori_supply: coin::treasury_into_supply(treasury_cap),
+//     //     total_yield_distributed: 0,
+//     //     last_distribution_timestamp: 0,
+//     // };
+//     // transfer::share_object(vault);
 
 // }
 // #[test_only]
